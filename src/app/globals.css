@@ -1,0 +1,14 @@
+@import "tailwindcss";
+
+@theme inline {
+  --color-cream: #FAF6F1;
+  --color-dark-brown: #2D2A26;
+  --font-heading: "Literata", serif;
+  --font-sans: "DM Sans", sans-serif;
+}
+
+body {
+  background-color: #FAF6F1;
+  color: #2D2A26;
+  font-family: "DM Sans", sans-serif;
+}

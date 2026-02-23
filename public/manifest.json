@@ -1,0 +1,16 @@
+{
+  "name": "積ん読リスト",
+  "short_name": "積ん読",
+  "description": "読みたい記事を保存して、AIが要約する積ん読管理アプリ",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#FAF6F1",
+  "theme_color": "#FAF6F1",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml"
+    }
+  ]
+}
