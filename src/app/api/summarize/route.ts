@@ -66,38 +66,58 @@ async function fetchArticleContent(
 
 export async function POST(request: NextRequest) {
   try {
-    const { url } = await request.json();
+    const body = await request.json();
+    const { url, text, title: providedTitle } = body;
 
-    if (!url || typeof url !== "string") {
-      console.error("[summarize] Missing or invalid URL in request body");
+    // テキスト直接入力モード: urlもtextも両方なければエラー
+    if (!text && !url) {
+      console.error("[summarize] Missing url and text in request body");
       return NextResponse.json(
-        { error: "URL is required" },
+        { error: "URLまたはテキストが必要です" },
         { status: 400 }
       );
     }
 
-    console.log(`[summarize] Processing: ${url}`);
+    let content: string;
 
-    const { content, fetchError } = await fetchArticleContent(url);
+    if (text && typeof text === "string" && text.trim().length >= 50) {
+      // テキスト直接入力モード: フェッチをスキップ
+      console.log(`[summarize] Text mode: ${text.length} chars provided directly`);
+      content = text.trim().slice(0, 8000);
+    } else if (url && typeof url === "string") {
+      // URLモード: 既存のフェッチ処理
+      console.log(`[summarize] Processing: ${url}`);
+      const { content: fetched, fetchError } = await fetchArticleContent(url);
 
-    // Fallback: fetch failed or content too short — return URL-based title
-    if (fetchError || !content || content.length < 50) {
-      console.warn(
-        `[summarize] Falling back to URL-based title. fetchError=${fetchError}, contentLength=${content.length}`
+      // Fallback: fetch failed or content too short — return URL-based title
+      if (fetchError || !fetched || fetched.length < 50) {
+        console.warn(
+          `[summarize] Falling back to URL-based title. fetchError=${fetchError}, contentLength=${fetched?.length ?? 0}`
+        );
+        return NextResponse.json({
+          title: titleFromUrl(url),
+          summary: fetchError
+            ? `記事の取得に失敗しました: ${fetchError}`
+            : "記事の内容を取得できませんでした",
+          tags: [],
+          fallback: true,
+        });
+      }
+      content = fetched;
+    } else {
+      return NextResponse.json(
+        { error: "有効なURLまたは50文字以上のテキストを入力してください" },
+        { status: 400 }
       );
-      return NextResponse.json({
-        title: titleFromUrl(url),
-        summary: fetchError
-          ? `記事の取得に失敗しました: ${fetchError}`
-          : "記事の内容を取得できませんでした",
-        tags: [],
-        fallback: true,
-      });
     }
 
     console.log(
-      `[summarize] Fetched ${content.length} chars, sending to Claude API...`
+      `[summarize] ${content.length} chars, sending to Claude API...`
     );
+
+    const titleInstruction = providedTitle
+      ? `タイトルは「${providedTitle}」を使用してください。`
+      : "記事のタイトル（原文のタイトルがあればそれを使用、なければ内容から適切なタイトルを生成）";
 
     const message = await anthropic.messages.create({
       model: "claude-sonnet-4-20250514",
@@ -112,12 +132,12 @@ ${content}
 
 以下のJSON形式で回答してください（JSON以外は出力しないでください）:
 {
-  "title": "記事のタイトル（原文のタイトルがあればそれを使用、なければ内容から適切なタイトルを生成）",
+  "title": "${providedTitle ? providedTitle : "記事のタイトル（原文のタイトルがあればそれを使用、なければ内容から適切なタイトルを生成）"}",
   "summary": "記事の要約（日本語で3〜5文程度。記事が英語でも日本語で要約してください）",
   "tags": ["タグ1", "タグ2", "タグ3"]
 }
 
-タグは記事の主要トピックを表す短い単語やフレーズで、3〜5個生成してください。`,
+${providedTitle ? `タイトルには必ず「${providedTitle}」を使用してください。` : ""}タグは記事の主要トピックを表す短い単語やフレーズで、3〜5個生成してください。`,
         },
       ],
     });
@@ -134,7 +154,7 @@ ${content}
         responseText.slice(0, 500)
       );
       return NextResponse.json({
-        title: titleFromUrl(url),
+        title: providedTitle || (url ? titleFromUrl(url) : "Untitled"),
         summary: "AIからの応答を解析できませんでした",
         tags: [],
         fallback: true,
@@ -159,10 +179,17 @@ ${content}
 
     // Even on unhandled error, try to return a fallback
     try {
-      const body = await request.clone().json();
-      if (body.url) {
+      const fallbackBody = await request.clone().json();
+      if (fallbackBody.url) {
         return NextResponse.json({
-          title: titleFromUrl(body.url),
+          title: fallbackBody.title || titleFromUrl(fallbackBody.url),
+          summary: `エラーが発生しました: ${message}`,
+          tags: [],
+          fallback: true,
+        });
+      } else if (fallbackBody.title) {
+        return NextResponse.json({
+          title: fallbackBody.title,
           summary: `エラーが発生しました: ${message}`,
           tags: [],
           fallback: true,

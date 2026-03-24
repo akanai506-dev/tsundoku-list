@@ -40,14 +40,18 @@ export default function ArticleCard({ article, onUpdateStatus, onUpdateMemo, onD
     <article className="bg-white rounded-xl p-5 shadow-sm border border-stone-200/60 transition-all hover:shadow-md">
       <div className="flex items-start justify-between gap-3 mb-3">
         <h3 className="font-heading text-lg font-semibold leading-snug text-dark-brown flex-1">
-          <a
-            href={article.url}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="hover:text-amber-700 transition-colors"
-          >
-            {article.title}
-          </a>
+          {article.url ? (
+            <a
+              href={article.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="hover:text-amber-700 transition-colors"
+            >
+              {article.title}
+            </a>
+          ) : (
+            <span>{article.title}</span>
+          )}
         </h3>
         <span className={`${status.bg} text-white text-xs font-sans font-medium px-2.5 py-1 rounded-full whitespace-nowrap`}>
           {status.label}
